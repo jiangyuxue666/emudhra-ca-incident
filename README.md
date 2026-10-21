@@ -53,11 +53,22 @@
 ```bash
 # 应因证书错误而失败（表示已不信任受影响证书链）
 curl -v https://dv-g3b-emudhra.we-have-a-problem.com/ -o /dev/null
-curl -v https://dv-g3b-aaa-emudhra.we-have-a-problem.com/ -o /dev/null
 
 # 应正常返回 200（表示普通站点不受影响）
 curl -sS -o /dev/null -w '%{http_code}\n' https://example.com/
 ```
+
+判定方式：
+
+| 输出 | 含义 |
+|---|---|
+| `unable to get local issuer certificate (20)`，退出码 60，`%{http_code}` 为 `000` | 预期结果：证书链无法在本地信任库中落到受信任的根。 |
+| HTTP 200 | 该客户端仍然信任受影响证书链，修复未生效。 |
+| 连接超时、DNS 失败等 | 与证书无关的网络问题，需单独排查。 |
+
+> `OpenSSL verify result: 14` 中的 `14` 是十六进制，等于十进制 20，与下一行括号里的 `(20)` 是同一个错误码，只是打印进制不同。
+
+> `dv-g3b-aaa-emudhra.we-have-a-problem.com` 的证书链以 `AAA Certificate Services` 为根。许多发行版和 MacPorts 的 CA bundle 原本就不包含该根，使用这些客户端时，无论是否完成修复都会验证失败，因此它不适合作为通用判据；只有在仍信任 AAA 根的客户端（例如使用系统 bundle 或 macOS 钥匙串的场景）上，它才反映修复状态。
 
 > 系统更新、包管理器升级或应用重装后，旧的 CA bundle 可能被写回，建议定期复测。
 
