@@ -1,0 +1,11 @@
+# 系统备份与运行时文件
+backups/
+node/
+
+# 本地生成的示例文件
+tools/install.sh
+tools/install2.sh
+tools/*.filtered
+
+# macOS 文件系统元数据
+.DS_Store
