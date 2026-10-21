@@ -53,6 +53,7 @@
 ```bash
 # 应因证书错误而失败（表示已不信任受影响证书链）
 curl -v https://dv-g3b-emudhra.we-have-a-problem.com/ -o /dev/null
+curl -v https://dv-g3b-aaa-emudhra.we-have-a-problem.com/ -o /dev/null
 
 # 应正常返回 200（表示普通站点不受影响）
 curl -sS -o /dev/null -w '%{http_code}\n' https://example.com/
@@ -62,13 +63,35 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://example.com/
 
 | 输出 | 含义 |
 |---|---|
-| `unable to get local issuer certificate (20)`，退出码 60，`%{http_code}` 为 `000` | 预期结果：证书链无法在本地信任库中落到受信任的根。 |
-| HTTP 200 | 该客户端仍然信任受影响证书链，修复未生效。 |
+| `unable to get local issuer certificate (20)`，退出码 60，`%{http_code}` 为 `000` | 证书链无法在本地信任库中落到受信任的根。 |
+| HTTP 200 | 该客户端仍然信任这条证书链。 |
 | 连接超时、DNS 失败等 | 与证书无关的网络问题，需单独排查。 |
 
 > `OpenSSL verify result: 14` 中的 `14` 是十六进制，等于十进制 20，与下一行括号里的 `(20)` 是同一个错误码，只是打印进制不同。
 
-> `dv-g3b-aaa-emudhra.we-have-a-problem.com` 的证书链以 `AAA Certificate Services` 为根。许多发行版和 MacPorts 的 CA bundle 原本就不包含该根，使用这些客户端时，无论是否完成修复都会验证失败，因此它不适合作为通用判据；只有在仍信任 AAA 根的客户端（例如使用系统 bundle 或 macOS 钥匙串的场景）上，它才反映修复状态。
+### 两个测试域名的证书链差异
+
+两条测试域名并非等价，链的顶端不同，因此同一份输出对它们意味着不同的事情：
+
+- `dv-g3b-emudhra.we-have-a-problem.com`：叶证书 ← `EM DV TLS CA - G3B` ← `emSign Root TLS CA - G3` ← `emSign ECC Root CA - G3`（根）。移除 `emSign ECC Root CA - G3` 后，链在本地信任库中无法终止，验证失败即表示修复生效。
+- `dv-g3b-aaa-emudhra.we-have-a-problem.com`：叶证书 ← `EM DV TLS CA - G3B`（RSA 交叉签名版）← `AAA Certificate Services`（根）。结果取决于客户端信任库是否包含 AAA 根：包含则验证通过，不包含则修复前后都会失败。
+
+已观察到的情况是：部分客户端（例如使用 MacPorts 自带 bundle 的 curl）的信任库中从未包含 AAA 根，访问第二条域名时即使未做任何修复也会报同样的 `(20)` 错误；而使用系统 bundle 或系统钥匙串的客户端包含 AAA 根，在仅移除 `emSign ECC Root CA - G3` 的情况下仍会返回 200。这两种结果都是预期内的，与修复是否完成无关。
+
+可以用下面的命令查看服务器实际下发的证书链，以及客户端读取的信任库：
+
+```bash
+# 查看证书链的 subject / issuer
+openssl s_client -connect dv-g3b-emudhra.we-have-a-problem.com:443 -showcerts </dev/null 2>/dev/null \
+  | openssl crl2pkcs7 -nocrl -certfile /dev/stdin \
+  | openssl pkcs7 -print_certs -noout
+
+# 确认某个 bundle 是否包含指定根证书
+openssl crl2pkcs7 -nocrl -certfile /etc/ssl/cert.pem \
+  | openssl pkcs7 -print_certs -noout | grep -c "AAA Certificate Services"
+```
+
+`curl -v` 输出中的 `CAfile:` 一行显示它实际读取的 bundle 路径。不同客户端使用不同的信任库（macOS 钥匙串、`/etc/ssl/cert.pem`、`/opt/local/share/curl/curl-ca-bundle.crt`、certifi 等），因此判断结果时需先确认该客户端使用的是哪一份。若某客户端的信任库中包含 AAA 根，第二条域名验证通过是预期结果；只有在该客户端也移除了 AAA 根时，它才应当失败。
 
 > 系统更新、包管理器升级或应用重装后，旧的 CA bundle 可能被写回，建议定期复测。
 
