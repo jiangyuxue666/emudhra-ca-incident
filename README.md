@@ -16,6 +16,7 @@
 
 ```
 .
+├── LICENSE
 ├── README.md
 ├── reports/
 │   └── emudhra-intermediate-ca-incident.md   # 完整技术说明与处置指南
@@ -64,7 +65,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://example.com/
 - `tools/` 下的脚本仅作为示例，未覆盖所有操作系统、运行时和应用场景。
 - 执行任何系统级修改前，请自行备份原始文件并评估兼容性影响。
 
-## 数据来源与许可
+## 许可
 
-- 报告与脚本可自由用于防御性安全目的；引用或转载时请注明来源。
-- `data/*.json` 来自公开披露页。该披露页的源码仓库未声明 LICENSE，公开再分发前请确认授权，或直接链接原始 URL。
+- 本仓库的原创内容（报告、README、脚本）采用 [MIT License](LICENSE)。
+- `data/*.json` 来自公开披露页，不属于本许可证的授权范围；公开再分发前请确认原始来源的授权，或直接链接原始 URL。
